@@ -8,8 +8,10 @@
  * - determinate: the agent published a todo plan (`todos` projection), so the
  *   bar fills with `done / total` and the label carries the plan item in
  *   flight;
- * - indeterminate: no plan, so the bar sweeps and the label carries the
- *   elapsed time plus the turn/step counters of the `sessionStats` projection.
+ * - plan-less: no denominator exists, so no bar at all. The strip stays
+ *   invisible for the first 8 seconds (most single-step turns finish before
+ *   that); past that it shows one quiet text line — status plus elapsed time
+ *   from the `sessionStats` projection — with no track and no animation.
  *
  * Data comes from Host-owned session projections and the session snapshot, so
  * the client never folds session events itself. Styling copies the host's own
@@ -55,10 +57,15 @@ window.__ModuleLoader__.load({
       '.dshTp_meta{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.dshTp_track{position:relative;height:3px;border-radius:999px;background:var(--dsw-alias-bg-skeleton, #00000014);overflow:hidden}',
       '.dshTp_fill{height:100%;border-radius:inherit;background:var(--dsw-alias-brand-primary, #4d6bfe);transition:width .3s ease}',
-      '.dshTp_fillIndeterminate{width:35%;animation:dshTp_sweep 1.2s ease-in-out infinite alternate}',
-      '@keyframes dshTp_sweep{0%{transform:translateX(-70%)}to{transform:translateX(220%)}}',
-      '@media (prefers-reduced-motion:reduce){.dshTp_fill{transition:none}.dshTp_fillIndeterminate{animation:none;width:100%;opacity:.45}}'
+      '@media (prefers-reduced-motion:reduce){.dshTp_fill{transition:none}}'
     ].join('');
+
+    // Without a todo plan there is no denominator, so no bar is honest. Stay
+    // fully invisible for the first QUIET_DELAY_MS of plan-less work (most
+    // single-step turns finish before that), then surface one quiet text line
+    // — no track, no animation — so a genuinely long unplanned task still
+    // shows a heartbeat.
+    const QUIET_DELAY_MS = 8000;
 
     /** Read the plan items out of the `todos` projection, defensively. */
     function planItems(todos) {
@@ -102,6 +109,7 @@ window.__ModuleLoader__.load({
       const done = items.filter((item) => item.status === 'completed').length;
       const active = items.find((item) => item.status === 'in_progress');
       const determinate = total > 0;
+      if (!determinate && elapsed < QUIET_DELAY_MS) return null;
       const percent = determinate ? Math.round((done / total) * 100) : 0;
 
       const statusParts = [];
@@ -131,12 +139,12 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dshTp_status' }, statusParts.join(' · ')),
             h('span', { className: 'dshTp_meta' }, meta)
           ),
-          h('div', { className: 'dshTp_track' },
+          determinate ? h('div', { className: 'dshTp_track' },
             h('div', {
-              className: determinate ? 'dshTp_fill' : 'dshTp_fill dshTp_fillIndeterminate',
-              style: determinate ? { width: `${percent}%` } : undefined
+              className: 'dshTp_fill',
+              style: { width: `${percent}%` }
             })
-          )
+          ) : null
         )
       );
     }
