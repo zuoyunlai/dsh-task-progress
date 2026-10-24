@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Task Progress",
+    "description": "Shows a live progress bar above the message composer while the model is working."
+  }
+}
